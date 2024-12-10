@@ -166,15 +166,15 @@ func applyTransaction(
 	}
 
 	// Check if the target address is a system contract
-	if msg.To != nil && isSystemContract(msg.To) {
-		// Retrieve custom gas fee from the smart contract
-		customGasFee, gasErr := getCustomGasFeeFromContract(msg, evm, statedb)
+	// if msg.To != nil && isSystemContract(msg.To) {
+	// Retrieve custom gas fee from the smart contract
+	customGasFee, gasErr := getCustomGasFeeFromContract(msg, evm, statedb)
 
-		if gasErr == nil && customGasFee > 0 {
-			// Override the gas used with the custom value from the contract
-			result.UsedGas = customGasFee
-		}
+	if gasErr == nil && customGasFee > 0 {
+		// Override the gas used with the custom value from the contract
+		result.UsedGas = customGasFee
 	}
+	// }
 
 	// Update the state with pending changes.
 	var root []byte
