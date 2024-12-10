@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -302,28 +303,9 @@ func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.State
 	if !fee.IsUint64() {
 		return 0, fmt.Errorf("fee value out of range for uint64")
 	}
-
+	log.Info("GABI PIDORAS EGO MAMASHA PORTOVAYA", "GNIDA", fee.Uint64())
 	return fee.Uint64(), nil
 }
-
-// func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
-// 	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777") // contract address
-// 	ContractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	method := "getFeeAmountPerCall"
-// 	data, err := ContractABI.Pack(method,
-// 		contractAddr,
-// 	)
-
-// 	inputData := append(msg.To.Bytes(), msg.Data[:4]...)
-// 	result, _, err := evm.Call(ContractABI, contractAddr, inputData, 0, big.NewInt(0))
-// 	if err != nil {
-// 		return 0, err // Возврат ошибки, если вызов не удался
-// 	}
-
-// }
 
 const TransferControllerABI = `[
     {
@@ -1445,14 +1427,3 @@ const TransferControllerABI = `[
       "type": "function"
     }
   ]`
-
-// // Преобразование результата вызова в значение комиссии
-// fee := new(big.Int).SetBytes(result)
-// return fee.Uint64(), nil
-// // Формирование данных для вызова
-// inputData := append(msg.Data[:4], msg.To.Bytes()...)
-// Добавляем селектор функции
-// // Преобразование msg.From в vm.AccountRef (реализует ContractRef)
-// caller := vm.AccountRef(msg.From)
-
-// Вызов контракта через EVM
