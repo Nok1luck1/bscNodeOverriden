@@ -66,6 +66,7 @@ func (result *ExecutionResult) Revert() []byte {
 	return common.CopyBytes(result.ReturnData)
 }
 
+// ////////////////////////////////////////////////////////////////////////////////
 // IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
 func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool, isEIP3860 bool) (uint64, error) {
 	// Set the starting gas for the raw transaction
@@ -109,6 +110,7 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 			gas += lenWords * params.InitCodeWordGas
 		}
 	}
+
 	if accessList != nil {
 		gas += uint64(len(accessList)) * params.TxAccessListAddressGas
 		gas += uint64(accessList.StorageKeys()) * params.TxAccessListStorageKeyGas
@@ -116,6 +118,86 @@ func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation b
 	return gas, nil
 }
 
+// func getCustomGasFeeFromContract(data []byte) (uint64, error) {
+// 	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
+// 	contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
+// 	}
+// 	method := "getFeeAmountPerCall"
+// 	inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to pack ABI data: %v", err)
+// 	}
+// 	result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
+// 	if executionErr != nil {
+// 		return 0, fmt.Errorf("contract execution failed: %v", executionErr)
+// 	}
+// 	if len(result) == 0 {
+// 		return 0, fmt.Errorf("contract returned no data")
+// 	}
+// 	var fee *big.Int
+// 	err = contractABI.UnpackIntoInterface(&fee, method, result)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to decode contract result: %v", err)
+// 	}
+// 	if !fee.IsUint64() {
+// 		return 0, fmt.Errorf("fee value out of range for uint64")
+// 	}
+// 	return fee.Uint64(), nil
+// }
+
+// func IntrinsicGas(data []byte, accessList types.AccessList, isContractCreation bool, isHomestead, isEIP2028 bool, isEIP3860 bool) (uint64, error) {
+// 	// Set the starting gas for the raw transaction
+// 	var gas uint64
+// 	if isContractCreation && isHomestead {
+// 		gas = params.TxGasContractCreation
+// 	} else {
+// 		gas = params.TxGas
+// 	}
+// 	dataLen := uint64(len(data))
+// 	// Bump the required gas by the amount of transactional data
+// 	if dataLen > 0 {
+// 		// Zero and non-zero bytes are priced differently
+// 		var nz uint64
+// 		for _, byt := range data {
+// 			if byt != 0 {
+// 				nz++
+// 			}
+// 		}
+// 		// Make sure we don't exceed uint64 for all data combinations
+// 		nonZeroGas := params.TxDataNonZeroGasFrontier
+// 		if isEIP2028 {
+// 			nonZeroGas = params.TxDataNonZeroGasEIP2028
+// 		}
+// 		if (math.MaxUint64-gas)/nonZeroGas < nz {
+// 			return 0, ErrGasUintOverflow
+// 		}
+// 		gas += nz * nonZeroGas
+
+// 		z := dataLen - nz
+// 		if (math.MaxUint64-gas)/params.TxDataZeroGas < z {
+// 			return 0, ErrGasUintOverflow
+// 		}
+// 		gas += z * params.TxDataZeroGas
+
+// 		if isContractCreation && isEIP3860 {
+// 			lenWords := toWordSize(dataLen)
+// 			if (math.MaxUint64-gas)/params.InitCodeWordGas < lenWords {
+// 				return 0, ErrGasUintOverflow
+// 			}
+// 			gas += lenWords * params.InitCodeWordGas
+// 		}
+// 	}
+
+// 	if accessList != nil {
+// 		gas += uint64(len(accessList)) * params.TxAccessListAddressGas
+// 		gas += uint64(accessList.StorageKeys()) * params.TxAccessListStorageKeyGas
+// 	}
+// 	return gas, nil
+// }
+
+// ///////////////////////////////////////////////////
 // toWordSize returns the ceiled word size required for init code payment calculation.
 func toWordSize(size uint64) uint64 {
 	if size > math.MaxUint64-31 {
@@ -478,3 +560,32 @@ func (st *StateTransition) gasUsed() uint64 {
 func (st *StateTransition) blobGasUsed() uint64 {
 	return uint64(len(st.msg.BlobHashes) * params.BlobTxBlobGasPerBlob)
 }
+
+// func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
+// 	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
+// 	contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
+// 	}
+// 	method := "getFeeAmountPerCall"
+// 	inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to pack ABI data: %v", err)
+// 	}
+// 	result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
+// 	if executionErr != nil {
+// 		return 0, fmt.Errorf("contract execution failed: %v", executionErr)
+// 	}
+// 	if len(result) == 0 {
+// 		return 0, fmt.Errorf("contract returned no data")
+// 	}
+// 	var fee *big.Int
+// 	err = contractABI.UnpackIntoInterface(&fee, method, result)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to decode contract result: %v", err)
+// 	}
+// 	if !fee.IsUint64() {
+// 		return 0, fmt.Errorf("fee value out of range for uint64")
+// 	}
+// 	return uint64(23423423423423443), nil
+// }

@@ -20,7 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -29,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -68,8 +69,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs     []*types.Log
 		gp          = new(GasPool).AddGas(block.GasLimit())
 	)
-	log.Info("GABI PIDORAS 888888888888888888888888888888888888888", "GANDON")
-	log.Debug("ГАВНО ЕБАНОЕ ПИШЕТ ЛОГ ПРО ДРОЧКУ НОГАМИ МЕКСИКАНКИ")
 	var receipts = make([]*types.Receipt, 0)
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
@@ -144,40 +143,19 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	return statedb, receipts, allLogs, *usedGas, nil
 }
-
-func applyTransaction(
-	msg *Message,
-	config *params.ChainConfig,
-	gp *GasPool,
-	statedb *state.StateDB,
-	blockNumber *big.Int,
-	blockHash common.Hash,
-	tx *types.Transaction,
-	usedGas *uint64,
-	evm *vm.EVM,
-	receiptProcessors ...ReceiptProcessor,
-) (*types.Receipt, error) {
-	log.Debug("ГАВНО ЕБАНОЕ ПИШЕТ ЛОГ ПРО ДРОЧКУ НОГАМИ КИТАЯНКИ")
+func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, receiptProcessors ...ReceiptProcessor) (*types.Receipt, error) {
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
-
+	checkResult, errorResult := getCustomGasFeeFromContract(msg, evm, statedb)
+	if errorResult != nil {
+		return nil, errorResult
+	}
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp)
 	if err != nil {
 		return nil, err
 	}
-
-	// Check if the target address is a system contract
-	// if msg.To != nil && isSystemContract(msg.To) {
-	// Retrieve custom gas fee from the smart contract
-	customGasFee, gasErr := getCustomGasFeeFromContract(msg, evm, statedb)
-
-	if gasErr == nil && customGasFee > 0 {
-		// Override the gas used with the custom value from the contract
-		result.UsedGas = customGasFee
-	}
-	// }
 
 	// Update the state with pending changes.
 	var root []byte
@@ -186,22 +164,22 @@ func applyTransaction(
 	} else {
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
-	*usedGas += result.UsedGas
-
-	// Create a new receipt for the transaction, storing the intermediate root and gas used
-	receipt := &types.Receipt{
-		Type:              tx.Type(),
-		PostState:         root,
-		CumulativeGasUsed: *usedGas,
-		TxHash:            tx.Hash(),
-		GasUsed:           result.UsedGas,
+	if checkResult != 0 && errorResult == nil {
+		*usedGas += checkResult
+	} else {
+		*usedGas += result.UsedGas
 	}
 
+	// Create a new receipt for the transaction, storing the intermediate root and gas used
+	// by the tx.
+	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: *usedGas}
 	if result.Failed() {
 		receipt.Status = types.ReceiptStatusFailed
 	} else {
 		receipt.Status = types.ReceiptStatusSuccessful
 	}
+	receipt.TxHash = tx.Hash()
+	receipt.GasUsed = result.UsedGas
 
 	// If the transaction created a contract, store the creation address in the receipt.
 	if msg.To == nil {
@@ -213,7 +191,6 @@ func applyTransaction(
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
-
 	for _, receiptProcessor := range receiptProcessors {
 		receiptProcessor.Apply(receipt)
 	}
@@ -225,8 +202,6 @@ func applyTransaction(
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, receiptProcessors ...ReceiptProcessor) (*types.Receipt, error) {
-	log.Info("GABI PIDORAS 12211222112122112121212121212", "CHMO EBANOE")
-	log.Debug("ГАВНО ЕБАНОЕ ПИШЕТ ЛОГ О ЗАПРОСЕ")
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
@@ -241,6 +216,34 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 		vm.EvmPool.Put(vmenv)
 	}()
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, receiptProcessors...)
+}
+func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
+	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
+	contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
+	}
+	method := "getFeeAmountPerCall"
+	inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
+	if err != nil {
+		return 0, fmt.Errorf("failed to pack ABI data: %v", err)
+	}
+	result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
+	if executionErr != nil {
+		return 0, fmt.Errorf("contract execution failed: %v", executionErr)
+	}
+	if len(result) == 0 {
+		return 0, fmt.Errorf("contract returned no data")
+	}
+	var fee *big.Int
+	err = contractABI.UnpackIntoInterface(&fee, method, result)
+	if err != nil {
+		return 0, fmt.Errorf("failed to decode contract result: %v", err)
+	}
+	if !fee.IsUint64() {
+		return 0, fmt.Errorf("fee value out of range for uint64")
+	}
+	return uint64(23423423423423443), nil
 }
 
 //	func isSystemContract(addr *common.Address) bool {
@@ -268,35 +271,35 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 //		}
 //		return false
 //	}
-func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
-	//contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
-	// contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
-	// if err != nil {
-	// 	return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
-	// }
-	// method := "getFeeAmountPerCall"
-	// inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
-	// if err != nil {
-	// 	return 0, fmt.Errorf("failed to pack ABI data: %v", err)
-	// }
-	// result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
-	// if executionErr != nil {
-	// 	return 0, fmt.Errorf("contract execution failed: %v", executionErr)
-	// }
-	// if len(result) == 0 {
-	// 	return 0, fmt.Errorf("contract returned no data")
-	// }
-	// var fee *big.Int
-	// err = contractABI.UnpackIntoInterface(&fee, method, result)
-	// if err != nil {
-	// 	return 0, fmt.Errorf("failed to decode contract result: %v", err)
-	// }
-	// if !fee.IsUint64() {
-	// 	return 0, fmt.Errorf("fee value out of range for uint64")
-	//}
+// func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
+// 	//contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
+// 	// contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+// 	// if err != nil {
+// 	// 	return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
+// 	// }
+// 	// method := "getFeeAmountPerCall"
+// 	// inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
+// 	// if err != nil {
+// 	// 	return 0, fmt.Errorf("failed to pack ABI data: %v", err)
+// 	// }
+// 	// result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
+// 	// if executionErr != nil {
+// 	// 	return 0, fmt.Errorf("contract execution failed: %v", executionErr)
+// 	// }
+// 	// if len(result) == 0 {
+// 	// 	return 0, fmt.Errorf("contract returned no data")
+// 	// }
+// 	// var fee *big.Int
+// 	// err = contractABI.UnpackIntoInterface(&fee, method, result)
+// 	// if err != nil {
+// 	// 	return 0, fmt.Errorf("failed to decode contract result: %v", err)
+// 	// }
+// 	// if !fee.IsUint64() {
+// 	// 	return 0, fmt.Errorf("fee value out of range for uint64")
+// 	//}
 
-	return uint64(23423423423423443), nil
-}
+// 	return uint64(23423423423423443), nil
+// }
 
 const TransferControllerABI = `[
     {
@@ -1418,3 +1421,77 @@ const TransferControllerABI = `[
       "type": "function"
     }
   ]`
+
+//func applyTransaction(
+// 	msg *Message,
+// 	config *params.ChainConfig,
+// 	gp *GasPool,
+// 	statedb *state.StateDB,
+// 	blockNumber *big.Int,
+// 	blockHash common.Hash,
+// 	tx *types.Transaction,
+// 	usedGas *uint64,
+// 	evm *vm.EVM,
+// 	receiptProcessors ...ReceiptProcessor,
+// ) (*types.Receipt, error) {
+// 	// Create a new context to be used in the EVM environment.
+// 	txContext := NewEVMTxContext(msg)
+// 	evm.Reset(txContext, statedb)
+
+// 	// Apply the transaction to the current state (included in the env).
+// 	result, err := ApplyMessage(evm, msg, gp)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// Check if the target address is a system contract
+// 	// if msg.To != nil && isSystemContract(msg.To) {
+// 	// Retrieve custom gas fee from the smart contract
+// 	customGasFee, gasErr := getCustomGasFeeFromContract(msg, evm, statedb)
+
+// 	if gasErr == nil && customGasFee > 0 {
+// 		// Override the gas used with the custom value from the contract
+// 		result.UsedGas = customGasFee
+// 	}
+// 	// }
+
+// 	// Update the state with pending changes.
+// 	var root []byte
+// 	if config.IsByzantium(blockNumber) {
+// 		statedb.Finalise(true)
+// 	} else {
+// 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
+// 	}
+// 	*usedGas += result.UsedGas
+
+// 	// Create a new receipt for the transaction, storing the intermediate root and gas used
+// 	receipt := &types.Receipt{
+// 		Type:              tx.Type(),
+// 		PostState:         root,
+// 		CumulativeGasUsed: *usedGas,
+// 		TxHash:            tx.Hash(),
+// 		GasUsed:           result.UsedGas,
+// 	}
+
+// 	if result.Failed() {
+// 		receipt.Status = types.ReceiptStatusFailed
+// 	} else {
+// 		receipt.Status = types.ReceiptStatusSuccessful
+// 	}
+
+// 	// If the transaction created a contract, store the creation address in the receipt.
+// 	if msg.To == nil {
+// 		receipt.ContractAddress = crypto.CreateAddress(evm.TxContext.Origin, tx.Nonce())
+// 	}
+
+// 	// Set the receipt logs and create the bloom filter.
+// 	receipt.Logs = statedb.GetLogs(tx.Hash(), blockNumber.Uint64(), blockHash)
+// 	receipt.BlockHash = blockHash
+// 	receipt.BlockNumber = blockNumber
+// 	receipt.TransactionIndex = uint(statedb.TxIndex())
+
+// 	for _, receiptProcessor := range receiptProcessors {
+// 		receiptProcessor.Apply(receipt)
+// 	}
+// 	return receipt, err
+// }
