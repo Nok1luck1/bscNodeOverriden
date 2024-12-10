@@ -158,6 +158,7 @@ func applyTransaction(
 	evm *vm.EVM,
 	receiptProcessors ...ReceiptProcessor,
 ) (*types.Receipt, error) {
+	log.Info("GABI PIDORAS 7777777777777777777777777777777777777777", "GNIDA")
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
@@ -167,7 +168,7 @@ func applyTransaction(
 	if err != nil {
 		return nil, err
 	}
-	log.Info("GABI PIDORAS 7777777777777777777777777777777777777777", "GNIDA", *result)
+
 	// Check if the target address is a system contract
 	// if msg.To != nil && isSystemContract(msg.To) {
 	// Retrieve custom gas fee from the smart contract
@@ -225,11 +226,12 @@ func applyTransaction(
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, receiptProcessors ...ReceiptProcessor) (*types.Receipt, error) {
+	log.Info("GABI PIDORAS 12211222112122112121212121212", "CHMO EBANOE")
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
 	}
-	log.Info("GABI PIDORAS 12211222112122112121212121212", "CHMO EBANOE")
+
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, author)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{BlobHashes: tx.BlobHashes()}, statedb, config, cfg)
@@ -240,71 +242,59 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}()
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, receiptProcessors...)
 }
-func isSystemContract(addr *common.Address) bool {
-	if addr == nil {
-		return false
-	}
-	systemContracts := []common.Address{
-		common.HexToAddress("0x0000000000000000000000000000000000001000"),
-		common.HexToAddress("0x0000000000000000000000000000000000001001"),
-		common.HexToAddress("0x0000000000000000000000000000000000001002"),
-		common.HexToAddress("0x0000000000000000000000000000000000001003"),
-		common.HexToAddress("0x0000000000000000000000000000000000001004"),
-		common.HexToAddress("0x0000000000000000000000000000000000001005"),
-		common.HexToAddress("0x0000000000000000000000000000000000001006"),
-		common.HexToAddress("0x0000000000000000000000000000000000001007"),
-		common.HexToAddress("0x0000000000000000000000000000000000001008"),
-		common.HexToAddress("0x0000000000000000000000000000000000002000"),
-		common.HexToAddress("0x0000000000000000000000000000000000002001"),
-		common.HexToAddress("0x0000000000000000000000000000000000007777"),
-	}
-	for _, sc := range systemContracts {
-		if *addr == sc {
-			return true
-		}
-	}
-	return false
-}
-func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
-	// Адрес контракта, в котором содержится информация о стоимости газа
-	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
 
-	// Определение ABI контракта
+//	func isSystemContract(addr *common.Address) bool {
+//		if addr == nil {
+//			return false
+//		}
+//		systemContracts := []common.Address{
+//			common.HexToAddress("0x0000000000000000000000000000000000001000"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001001"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001002"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001003"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001004"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001005"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001006"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001007"),
+//			common.HexToAddress("0x0000000000000000000000000000000000001008"),
+//			common.HexToAddress("0x0000000000000000000000000000000000002000"),
+//			common.HexToAddress("0x0000000000000000000000000000000000002001"),
+//			common.HexToAddress("0x0000000000000000000000000000000000007777"),
+//		}
+//		for _, sc := range systemContracts {
+//			if *addr == sc {
+//				return true
+//			}
+//		}
+//		return false
+//	}
+func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
+	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
 	contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
 	}
-
-	// Упаковка данных для вызова функции getFeeAmountPerCall
 	method := "getFeeAmountPerCall"
 	inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
 	if err != nil {
 		return 0, fmt.Errorf("failed to pack ABI data: %v", err)
 	}
-
-	// Вызов контракта через EVM
-	result, _, err := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
-	if err != nil {
-		return 0, fmt.Errorf("contract execution failed: %v", err)
+	result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
+	if executionErr != nil {
+		return 0, fmt.Errorf("contract execution failed: %v", executionErr)
 	}
-
-	// Проверка, что контракт вернул данные
 	if len(result) == 0 {
 		return 0, fmt.Errorf("contract returned no data")
 	}
-
-	// Декодирование возвращаемого значения
 	var fee *big.Int
 	err = contractABI.UnpackIntoInterface(&fee, method, result)
 	if err != nil {
 		return 0, fmt.Errorf("failed to decode contract result: %v", err)
 	}
-
-	// Преобразование результата в uint64
 	if !fee.IsUint64() {
 		return 0, fmt.Errorf("fee value out of range for uint64")
 	}
-	log.Info("GABI PIDORAS EGO MAMASHA PORTOVAYA", "GNIDA", fee.Uint64())
+
 	return fee.Uint64(), nil
 }
 
