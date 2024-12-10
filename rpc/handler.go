@@ -490,6 +490,7 @@ func (h *handler) handleCallMsg(ctx *callProc, reqCtx context.Context, msg *json
 			if resp.Error.Data != nil {
 				ctx = append(ctx, "errdata", resp.Error.Data)
 			}
+			log.Debug("JOPA SAKI I PIZDAKI")
 			h.log.Warn("Served "+msg.Method, ctx...)
 		} else {
 			h.log.Debug("Served "+msg.Method, ctx...)
