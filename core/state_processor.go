@@ -20,9 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -148,17 +146,13 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
-	checkResult, errorResult := getCustomGasFeeFromContract(msg, evm)
-	if errorResult != nil {
-		return nil, errorResult
-	}
-	log.Crit("PIZDA compu")
+
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp)
 	if err != nil {
 		return nil, err
 	}
-
+	log.Crit("PIZDA compu")
 	// Update the state with pending changes.
 	var root []byte
 	if config.IsByzantium(blockNumber) {
@@ -166,12 +160,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	} else {
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
-	if checkResult != 0 && errorResult == nil {
-		*usedGas += checkResult
-	} else {
-		*usedGas += result.UsedGas
-	}
-
+	*usedGas += result.UsedGas
+	log.Crit("PIZDA compu")
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
 	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: *usedGas}
@@ -199,6 +189,61 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	return receipt, err
 }
 
+// func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM, receiptProcessors ...ReceiptProcessor) (*types.Receipt, error) {
+// 	// Create a new context to be used in the EVM environment.
+// 	txContext := NewEVMTxContext(msg)
+// 	evm.Reset(txContext, statedb)
+// 	checkResult, errorResult := getCustomGasFeeFromContract(msg, evm)
+// 	if errorResult != nil {
+// 		return nil, errorResult
+// 	}
+// 	log.Crit("PIZDA compu")
+// 	// Apply the transaction to the current state (included in the env).
+// 	result, err := ApplyMessage(evm, msg, gp)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// Update the state with pending changes.
+// 	var root []byte
+// 	if config.IsByzantium(blockNumber) {
+// 		statedb.Finalise(true)
+// 	} else {
+// 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
+// 	}
+// 	if checkResult != 0 && errorResult == nil {
+// 		*usedGas += checkResult
+// 	} else {
+// 		*usedGas += result.UsedGas
+// 	}
+
+// 	// Create a new receipt for the transaction, storing the intermediate root and gas used
+// 	// by the tx.
+// 	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: *usedGas}
+// 	if result.Failed() {
+// 		receipt.Status = types.ReceiptStatusFailed
+// 	} else {
+// 		receipt.Status = types.ReceiptStatusSuccessful
+// 	}
+// 	receipt.TxHash = tx.Hash()
+// 	receipt.GasUsed = result.UsedGas
+
+// 	// If the transaction created a contract, store the creation address in the receipt.
+// 	if msg.To == nil {
+// 		receipt.ContractAddress = crypto.CreateAddress(evm.TxContext.Origin, tx.Nonce())
+// 	}
+
+// 	// Set the receipt logs and create the bloom filter.
+// 	receipt.Logs = statedb.GetLogs(tx.Hash(), blockNumber.Uint64(), blockHash)
+// 	receipt.BlockHash = blockHash
+// 	receipt.BlockNumber = blockNumber
+// 	receipt.TransactionIndex = uint(statedb.TxIndex())
+// 	for _, receiptProcessor := range receiptProcessors {
+// 		receiptProcessor.Apply(receipt)
+// 	}
+// 	return receipt, err
+// }
+
 // ApplyTransaction attempts to apply a transaction to the given state database
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
@@ -219,37 +264,38 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}()
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, receiptProcessors...)
 }
-func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM) (uint64, error) {
-	log.Crit("PIZDA")
-	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
-	parsedABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
-	if err != nil {
-		return 0, fmt.Errorf("error parsing ABI: %w", err)
-	}
-	log.Crit("PIZDA")
-	methodName := "getFeeAmountPerCall"
-	selector := msg.Data[:4]
-	inputData, err := parsedABI.Pack(methodName, *msg.To, selector)
-	if err != nil {
-		return 0, fmt.Errorf("error packing ABI data: %w", err)
-	}
-	gasLimit := uint64(50000)
-	result, _, execErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, gasLimit, big.NewInt(0))
-	if execErr != nil {
-		return 0, fmt.Errorf("contract execution failed: %w", execErr)
-		log.Warn("PIZDA")
-	}
-	var fee *big.Int
-	err = parsedABI.UnpackIntoInterface(&fee, methodName, result)
-	if err != nil {
-		return 0, fmt.Errorf("error decoding contract result: %w", err)
-	}
 
-	if fee == nil || !fee.IsUint64() {
-		return 0, fmt.Errorf("decoded fee is invalid or out of uint64 range")
-	}
-	return fee.Uint64(), nil
-}
+// func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM) (uint64, error) {
+// 	log.Crit("PIZDA")
+// 	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
+// 	parsedABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+// 	if err != nil {
+// 		return 0, fmt.Errorf("error parsing ABI: %w", err)
+// 	}
+// 	log.Crit("PIZDA")
+// 	methodName := "getFeeAmountPerCall"
+// 	selector := msg.Data[:4]
+// 	inputData, err := parsedABI.Pack(methodName, *msg.To, selector)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("error packing ABI data: %w", err)
+// 	}
+// 	gasLimit := uint64(50000)
+// 	result, _, execErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, gasLimit, big.NewInt(0))
+// 	if execErr != nil {
+// 		return 0, fmt.Errorf("contract execution failed: %w", execErr)
+// 		log.Warn("PIZDA")
+// 	}
+// 	var fee *big.Int
+// 	err = parsedABI.UnpackIntoInterface(&fee, methodName, result)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("error decoding contract result: %w", err)
+// 	}
+
+// 	if fee == nil || !fee.IsUint64() {
+// 		return 0, fmt.Errorf("decoded fee is invalid or out of uint64 range")
+// 	}
+// 	return fee.Uint64(), nil
+// }
 
 const TransferControllerABI = `[
     {
