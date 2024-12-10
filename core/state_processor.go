@@ -147,7 +147,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
-	checkResult, errorResult := getCustomGasFeeFromContract(msg, evm, statedb)
+	checkResult, errorResult := getCustomGasFeeFromContract(msg, evm)
 	if errorResult != nil {
 		return nil, errorResult
 	}
@@ -217,33 +217,39 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}()
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, receiptProcessors...)
 }
-func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
+func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM) (uint64, error) {
 	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
-	contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+	parsedABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
 	if err != nil {
-		return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
+		return 0, fmt.Errorf("error parsing ABI: %w", err)
 	}
-	method := "getFeeAmountPerCall"
-	inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
+	methodName := "getFeeAmountPerCall"
+	if len(msg.Data) < 4 {
+		return 0, fmt.Errorf("invalid input data: selector is missing")
+	}
+	selector := msg.Data[:4]
+	inputData, err := parsedABI.Pack(methodName, *msg.To, selector)
 	if err != nil {
-		return 0, fmt.Errorf("failed to pack ABI data: %v", err)
+		return 0, fmt.Errorf("error packing ABI data: %w", err)
 	}
-	result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
-	if executionErr != nil {
-		return 0, fmt.Errorf("contract execution failed: %v", executionErr)
+	gasLimit := uint64(50000)
+	result, _, execErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, gasLimit, big.NewInt(0))
+	if execErr != nil {
+		return 0, fmt.Errorf("contract execution failed: %w", execErr)
 	}
 	if len(result) == 0 {
 		return 0, fmt.Errorf("contract returned no data")
 	}
 	var fee *big.Int
-	err = contractABI.UnpackIntoInterface(&fee, method, result)
+	err = parsedABI.UnpackIntoInterface(&fee, methodName, result)
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode contract result: %v", err)
+		return 0, fmt.Errorf("error decoding contract result: %w", err)
 	}
-	if !fee.IsUint64() {
-		return 0, fmt.Errorf("fee value out of range for uint64")
+
+	if fee == nil || !fee.IsUint64() {
+		return 0, fmt.Errorf("decoded fee is invalid or out of uint64 range")
 	}
-	return uint64(23423423423423443), nil
+	return fee.Uint64(), nil
 }
 
 //	func isSystemContract(addr *common.Address) bool {
