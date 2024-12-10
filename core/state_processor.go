@@ -71,6 +71,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		gp          = new(GasPool).AddGas(block.GasLimit())
 	)
 	log.Info("GABI PIDORAS 888888888888888888888888888888888888888", "GANDON")
+	log.Debug("ГАВНО ЕБАНОЕ ПИШЕТ ЛОГ ПРО ДРОЧКУ НОГАМИ МЕКСИКАНКИ")
 	var receipts = make([]*types.Receipt, 0)
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
@@ -158,7 +159,7 @@ func applyTransaction(
 	evm *vm.EVM,
 	receiptProcessors ...ReceiptProcessor,
 ) (*types.Receipt, error) {
-	log.Info("GABI PIDORAS 7777777777777777777777777777777777777777", "GNIDA")
+	log.Debug("ГАВНО ЕБАНОЕ ПИШЕТ ЛОГ ПРО ДРОЧКУ НОГАМИ КИТАЯНКИ")
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
@@ -227,6 +228,7 @@ func applyTransaction(
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, receiptProcessors ...ReceiptProcessor) (*types.Receipt, error) {
 	log.Info("GABI PIDORAS 12211222112122112121212121212", "CHMO EBANOE")
+	log.Debug("ГАВНО ЕБАНОЕ ПИШЕТ ЛОГ О ЗАПРОСЕ")
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
