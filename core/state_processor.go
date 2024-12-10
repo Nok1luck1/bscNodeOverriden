@@ -20,9 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -271,33 +269,33 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 //		return false
 //	}
 func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM, statedb *state.StateDB) (uint64, error) {
-	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
-	contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
-	}
-	method := "getFeeAmountPerCall"
-	inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
-	if err != nil {
-		return 0, fmt.Errorf("failed to pack ABI data: %v", err)
-	}
-	result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
-	if executionErr != nil {
-		return 0, fmt.Errorf("contract execution failed: %v", executionErr)
-	}
-	if len(result) == 0 {
-		return 0, fmt.Errorf("contract returned no data")
-	}
-	var fee *big.Int
-	err = contractABI.UnpackIntoInterface(&fee, method, result)
-	if err != nil {
-		return 0, fmt.Errorf("failed to decode contract result: %v", err)
-	}
-	if !fee.IsUint64() {
-		return 0, fmt.Errorf("fee value out of range for uint64")
-	}
+	//contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
+	// contractABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+	// if err != nil {
+	// 	return 0, fmt.Errorf("failed to parse contract ABI: %v", err)
+	// }
+	// method := "getFeeAmountPerCall"
+	// inputData, err := contractABI.Pack(method, *msg.To, msg.Data[:4])
+	// if err != nil {
+	// 	return 0, fmt.Errorf("failed to pack ABI data: %v", err)
+	// }
+	// result, _, executionErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, 0, big.NewInt(0))
+	// if executionErr != nil {
+	// 	return 0, fmt.Errorf("contract execution failed: %v", executionErr)
+	// }
+	// if len(result) == 0 {
+	// 	return 0, fmt.Errorf("contract returned no data")
+	// }
+	// var fee *big.Int
+	// err = contractABI.UnpackIntoInterface(&fee, method, result)
+	// if err != nil {
+	// 	return 0, fmt.Errorf("failed to decode contract result: %v", err)
+	// }
+	// if !fee.IsUint64() {
+	// 	return 0, fmt.Errorf("fee value out of range for uint64")
+	//}
 
-	return fee.Uint64(), nil
+	return uint64(23423423423423443), nil
 }
 
 const TransferControllerABI = `[
