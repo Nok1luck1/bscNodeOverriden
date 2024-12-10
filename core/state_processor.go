@@ -70,7 +70,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs     []*types.Log
 		gp          = new(GasPool).AddGas(block.GasLimit())
 	)
-
+	log.Info("GABI PIDORAS 888888888888888888888888888888888888888", "GANDON")
 	var receipts = make([]*types.Receipt, 0)
 	// Mutate the block and state according to any hard-fork specs
 	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
@@ -167,7 +167,7 @@ func applyTransaction(
 	if err != nil {
 		return nil, err
 	}
-
+	log.Info("GABI PIDORAS 7777777777777777777777777777777777777777", "GNIDA", *result)
 	// Check if the target address is a system contract
 	// if msg.To != nil && isSystemContract(msg.To) {
 	// Retrieve custom gas fee from the smart contract
@@ -229,6 +229,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	if err != nil {
 		return nil, err
 	}
+	log.Info("GABI PIDORAS 12211222112122112121212121212", "CHMO EBANOE")
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, author)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{BlobHashes: tx.BlobHashes()}, statedb, config, cfg)
