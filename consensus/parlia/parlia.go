@@ -228,7 +228,7 @@ type Parlia struct {
 	validatorSetABIBeforeLuban abi.ABI
 	validatorSetABI            abi.ABI
 	slashABI                   abi.ABI
-
+	transferControllerABI      abi.ABI
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
 }
@@ -266,6 +266,11 @@ func New(
 	if err != nil {
 		panic(err)
 	}
+	///ADDED transferController to init
+	tABI, err := abi.JSON(strings.NewReader(transferControllerABI))
+	if err != nil {
+		panic(err)
+	}
 	sABI, err := abi.JSON(strings.NewReader(slashABI))
 	if err != nil {
 		panic(err)
@@ -280,6 +285,7 @@ func New(
 		signatures:                 signatures,
 		validatorSetABIBeforeLuban: vABIBeforeLuban,
 		validatorSetABI:            vABI,
+		transferControllerABI: 		tABI,	
 		slashABI:                   sABI,
 		signer:                     types.LatestSigner(chainConfig),
 	}

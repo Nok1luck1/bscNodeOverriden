@@ -3121,7 +3121,8 @@ const slashABI = `
     }
   ]
 `
-const TransferControllerABI = `[
+const transferControllerABI = `
+[
     {
       "inputs": [],
       "stateMutability": "nonpayable",
