@@ -20,7 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -152,7 +154,14 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	if err != nil {
 		return nil, err
 	}
-	log.Warn("PIZDA compu")
+	log.Warn("PIZDA compu  apply message has gone", result)
+	customGasFee, gasErr := getCustomGasFeeFromContract(msg, evm)
+	log.Warn("call to contract", customGasFee)
+	if gasErr == nil && customGasFee > 0 {
+		// Override the gas used with the custom value from the contract
+		result.UsedGas = customGasFee
+	}
+
 	// Update the state with pending changes.
 	var root []byte
 	if config.IsByzantium(blockNumber) {
@@ -161,7 +170,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
 	*usedGas += result.UsedGas
-	log.Warn("PIZDA compu")
+	log.Warn("PIZDA compu usedGas amount in this quantity", usedGas)
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
@@ -266,37 +275,38 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, receiptProcessors...)
 }
 
-// func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM) (uint64, error) {
-// 	log.Crit("PIZDA")
-// 	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
-// 	parsedABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
-// 	if err != nil {
-// 		return 0, fmt.Errorf("error parsing ABI: %w", err)
-// 	}
-// 	log.Crit("PIZDA")
-// 	methodName := "getFeeAmountPerCall"
-// 	selector := msg.Data[:4]
-// 	inputData, err := parsedABI.Pack(methodName, *msg.To, selector)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("error packing ABI data: %w", err)
-// 	}
-// 	gasLimit := uint64(50000)
-// 	result, _, execErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, gasLimit, big.NewInt(0))
-// 	if execErr != nil {
-// 		return 0, fmt.Errorf("contract execution failed: %w", execErr)
-// 		log.Warn("PIZDA")
-// 	}
-// 	var fee *big.Int
-// 	err = parsedABI.UnpackIntoInterface(&fee, methodName, result)
-// 	if err != nil {
-// 		return 0, fmt.Errorf("error decoding contract result: %w", err)
-// 	}
+func getCustomGasFeeFromContract(msg *Message, evm *vm.EVM) (uint64, error) {
+	log.Warn("PIZDA")
+	contractAddr := common.HexToAddress("0x0000000000000000000000000000000000007777")
+	parsedABI, err := abi.JSON(strings.NewReader(TransferControllerABI))
+	if err != nil {
+		return 0, fmt.Errorf("error parsing ABI: %w", err)
+	}
+	log.Warn("PIZDA")
+	methodName := "getFeeAmountPerCall"
+	selector := msg.Data[:4]
+	inputData, err := parsedABI.Pack(methodName, *msg.To, selector)
+	if err != nil {
+		return 0, fmt.Errorf("error packing ABI data: %w", err)
+	}
+	gasLimit := uint64(50000)
+	result, _, execErr := evm.Call(vm.AccountRef(msg.From), contractAddr, inputData, gasLimit, big.NewInt(0))
+	if execErr != nil {
+		log.Warn("PIZDA Paka gay 123123123123", execErr)
+		return 0, fmt.Errorf("contract execution failed: %w", execErr)
 
-// 	if fee == nil || !fee.IsUint64() {
-// 		return 0, fmt.Errorf("decoded fee is invalid or out of uint64 range")
-// 	}
-// 	return fee.Uint64(), nil
-// }
+	}
+	var fee *big.Int
+	err = parsedABI.UnpackIntoInterface(&fee, methodName, result)
+	if err != nil {
+		return 0, fmt.Errorf("error decoding contract result: %w", err)
+	}
+
+	if fee == nil || !fee.IsUint64() {
+		return 0, fmt.Errorf("decoded fee is invalid or out of uint64 range")
+	}
+	return fee.Uint64(), nil
+}
 
 const TransferControllerABI = `[
     {
