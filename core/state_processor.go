@@ -152,7 +152,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	if err != nil {
 		return nil, err
 	}
-	log.Crit("PIZDA compu")
+	log.Warn("PIZDA compu")
 	// Update the state with pending changes.
 	var root []byte
 	if config.IsByzantium(blockNumber) {
@@ -161,7 +161,7 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
 	}
 	*usedGas += result.UsedGas
-	log.Crit("PIZDA compu")
+	log.Warn("PIZDA compu")
 
 	// Create a new receipt for the transaction, storing the intermediate root and gas used
 	// by the tx.
